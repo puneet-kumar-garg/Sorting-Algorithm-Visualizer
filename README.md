@@ -47,3 +47,9 @@ make && make run
 
 This project offers an interactive and visual way to learn sorting algorithms using C++ and SDL2.
 It helps users see the logic behind sorting through animated comparisons and real-time metrics, making it an ideal educational and practical demonstration of algorithm efficiency.
+
+
+🆕 New Update (Latest Commit)
+
+This update improves the visualization experience by adding colored outlines to each bar and changing the bar color when the array is completely sorted. Now, each bar has a clear boundary for better visibility, and once sorting completes, the bars smoothly transition to a green color, indicating successful completion of the sorting process. These enhancements make it easier to distinguish array elements during sorting and provide a visually rewarding finish animation.
+
