@@ -32,7 +32,7 @@ struct Button {
 struct App {
     SDL_Window* win=nullptr; SDL_Renderer* ren=nullptr; TTF_Font* font=nullptr;
     int W=1024,H=720, top=80; int n=100; int delay=10; Algo algo=BUBBLE; bool sorting=false; bool quit=false; bool stop=false;
-    long long comps=0, swaps=0; std::vector<int> a;
+    long long comps=0, swaps=0; std::vector<int> a; std::vector<bool> sorted;
     Button btns[12]; // 5 algos + shuffle + size- + size+ + speed- + speed+ + start + stop
     std::mt19937 rng{std::random_device{}()};
 
@@ -56,14 +56,23 @@ struct App {
         for(auto p:cands){ if(auto f=TTF_OpenFont(p,sz)) return f; }
         return nullptr;
     }
-    void genData(){ a.resize(n); for(int i=0;i<n;i++) a[i]=i+1; std::shuffle(a.begin(),a.end(),rng); comps=swaps=0; }
+    void genData(){ a.resize(n); for(int i=0;i<n;i++) a[i]=i+1; std::shuffle(a.begin(),a.end(),rng); comps=swaps=0; sorted.assign(n,false); }
     void drawBars(int hi1=-1,int hi2=-1){
         SDL_SetRenderDrawColor(ren, 16,16,16,255); SDL_RenderClear(ren);
         int availableH=H-top-20; int maxv=*std::max_element(a.begin(),a.end());
         int bw=std::max(1,(W-20)/n); int gap=0; int baseY=H-10;
         for(int i=0;i<n;i++){
             int h=(int)((float)a[i]/maxv * availableH);
-            if(i==hi1||i==hi2) SDL_SetRenderDrawColor(ren, 255,80,80,255);
+            // thick outline
+            SDL_SetRenderDrawColor(ren, 30,30,30,255);
+            SDL_Rect outline{10+i*bw, baseY-h, bw-gap, h};
+            SDL_RenderDrawRect(ren,&outline);
+            // draw again 1 px larger to make 2 px border
+            outline.x-=1; outline.y-=1; outline.w+=2; outline.h+=2;
+            SDL_RenderDrawRect(ren,&outline);
+            // fill bar
+            if(sorted.size()==(size_t)n && sorted[i]) SDL_SetRenderDrawColor(ren, 80,220,120,255);
+            else if(i==hi1||i==hi2) SDL_SetRenderDrawColor(ren, 255,80,80,255);
             else SDL_SetRenderDrawColor(ren, 80,180,220,255);
             SDL_Rect r{10+i*bw, baseY-h, bw-gap, h};
             SDL_RenderFillRect(ren,&r);
@@ -94,14 +103,15 @@ struct App {
             if(ms>=delay||quit||stop) break; SDL_Delay(1);
         }
     }
-    void bubble(){ for(int i=0;i<n-1&&!quit&&!stop;i++) for(int j=0;j<n-i-1&&!quit&&!stop;j++){ comps++; step(j,j+1); if(stop) break; if(a[j]>a[j+1]){ std::swap(a[j],a[j+1]); swaps++; step(j,j+1);} } }
-    void insertion(){ for(int i=1;i<n&&!quit&&!stop;i++){ int key=a[i]; int j=i-1; while(j>=0&&!stop){ comps++; step(j,i); if(stop) break; if(a[j]>key){ a[j+1]=a[j]; swaps++; step(j,j+1); j--; } else break; } a[j+1]=key; step(j+1,i); } }
-    void selection(){ for(int i=0;i<n-1&&!quit&&!stop;i++){ int mi=i; for(int j=i+1;j<n&&!quit&&!stop;j++){ comps++; step(mi,j); if(stop) break; if(a[j]<a[mi]) mi=j; } if(stop) break; if(mi!=i){ std::swap(a[i],a[mi]); swaps++; step(i,mi);} } }
+    void bubble(){ for(int i=0;i<n-1&&!quit&&!stop;i++){ for(int j=0;j<n-i-1&&!quit&&!stop;j++){ comps++; step(j,j+1); if(stop) break; if(a[j]>a[j+1]){ std::swap(a[j],a[j+1]); swaps++; step(j,j+1);} } if(stop) break; sorted[n-i-1]=true; step(n-i-1,n-i-1);} }
+    void insertion(){ for(int i=1;i<n&&!quit&&!stop;i++){ int key=a[i]; int j=i-1; while(j>=0&&!stop){ comps++; step(j,i); if(stop) break; if(a[j]>key){ a[j+1]=a[j]; swaps++; step(j,j+1); j--; } else break; } a[j+1]=key; for(int k=0;k<=i;k++) sorted[k]=true; step(j+1,i); } }
+    void selection(){ for(int i=0;i<n-1&&!quit&&!stop;i++){ int mi=i; for(int j=i+1;j<n&&!quit&&!stop;j++){ comps++; step(mi,j); if(stop) break; if(a[j]<a[mi]) mi=j; } if(stop) break; if(mi!=i){ std::swap(a[i],a[mi]); swaps++; } sorted[i]=true; step(i,mi);} }
     void mergeRange(int l,int m,int r){
         int n1=m-l+1,n2=r-m; std::vector<int>L(n1),R(n2); for(int i=0;i<n1;i++)L[i]=a[l+i]; for(int j=0;j<n2;j++)R[j]=a[m+1+j];
-        int i=0,j=0,k=l; while(i<n1&&j<n2&&!quit&&!stop){ comps++; step(l+i,m+1+j); if(stop) break; if(L[i]<=R[j]) a[k++]=L[i++]; else { a[k++]=R[j++]; swaps++; } step(k-1,k-1);} while(i<n1&&!quit&&!stop){ a[k++]=L[i++]; step(k-1,k-1);} while(j<n2&&!quit&&!stop){ a[k++]=R[j++]; step(k-1,k-1);} }
+        int i=0,j=0,k=l; while(i<n1&&j<n2&&!quit&&!stop){ comps++; step(l+i,m+1+j); if(stop) break; if(L[i]<=R[j]) a[k++]=L[i++]; else { a[k++]=R[j++]; swaps++; } step(k-1,k-1);} while(i<n1&&!quit&&!stop){ a[k++]=L[i++]; step(k-1,k-1);} while(j<n2&&!quit&&!stop){ a[k++]=R[j++]; step(k-1,k-1);} for(int t=l;t<=r;t++) sorted[t]=true; step(r,r);
+    }
     void mergeSort(int l,int r){ if(l>=r||quit||stop) return; int m=(l+r)/2; mergeSort(l,m); if(stop) return; mergeSort(m+1,r); if(stop) return; mergeRange(l,m,r); }
-    int partition(int l,int r){ int p=a[r]; int i=l; for(int j=l;j<r&&!quit&&!stop;j++){ comps++; step(j,r); if(stop) break; if(a[j]<p){ std::swap(a[i],a[j]); swaps++; step(i,j); i++; } } if(!stop){ std::swap(a[i],a[r]); swaps++; step(i,r); } return i; }
+    int partition(int l,int r){ int p=a[r]; int i=l; for(int j=l;j<r&&!quit&&!stop;j++){ comps++; step(j,r); if(stop) break; if(a[j]<p){ std::swap(a[i],a[j]); swaps++; step(i,j); i++; } } if(!stop){ std::swap(a[i],a[r]); swaps++; sorted[i]=true; step(i,r); } return i; }
     void quickSort(int l,int r){ if(l<r&&!quit&&!stop){ int pi=partition(l,r); if(stop) return; quickSort(l,pi-1); if(stop) return; quickSort(pi+1,r);} }
 
     void run(){
@@ -119,7 +129,7 @@ struct App {
                         else if(k==7){ n=std::min(300,n+10); genData(); }
                         else if(k==8){ delay=std::max(0,delay-5); }
                         else if(k==9){ delay=std::min(200,delay+5); }
-                        else if(k==10 && !sorting){ sorting=true; stop=false;
+                        else if(k==10 && !sorting){ sorting=true; stop=false; std::fill(sorted.begin(),sorted.end(),false);
                             if(algo==BUBBLE) bubble(); else if(algo==INSERTION) insertion(); else if(algo==SELECTION) selection(); else if(algo==MERGE) mergeSort(0,n-1); else quickSort(0,n-1);
                             sorting=false; }
                         else if(k==11){ stop=true; }
